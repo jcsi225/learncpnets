@@ -6,6 +6,14 @@ import org.w3c.dom.Document;
 import org.w3c.dom.NodeList;
 import org.w3c.dom.Node;
 import org.w3c.dom.Element;
+import org.w3c.dom.Attr;
+import java.io.File;
+import javax.xml.parsers.ParserConfigurationException;
+import javax.xml.transform.Transformer;
+import javax.xml.transform.TransformerException;
+import javax.xml.transform.TransformerFactory;
+import javax.xml.transform.dom.DOMSource;
+import javax.xml.transform.stream.StreamResult;
 
 import java.util.*;
 
@@ -120,6 +128,90 @@ class PreferenceSpecification
         }
     }
 
+    // Methods
+
+    // Write an XML file of the preferences, similarly to the read-in format
+    void writeXML(String filePath)
+    {
+        try {
+
+            // Build XML tree
+            DocumentBuilderFactory docFactory = DocumentBuilderFactory.newInstance();
+            DocumentBuilder docBuilder = docFactory.newDocumentBuilder();
+            Document doc = docBuilder.newDocument();
+            Element rootElement = doc.createElement("PREFERENCE-SPECIFICATION");
+            doc.appendChild(rootElement);
+
+            // Add preference variables
+            for (HashMap.Entry<String,HashMap<Boolean,String>> varEntry : this.varToValueNames.entrySet())
+            {
+                Element varElement = doc.createElement("PREFERENCE-VARIABLE");
+                rootElement.appendChild(varElement);
+
+                Element varNameElement = doc.createElement("VARIABLE-NAME");
+                varNameElement.appendChild(doc.createTextNode(varEntry.getKey())); // the variable name itself
+                varElement.appendChild(varNameElement);
+
+                for (HashMap.Entry<Boolean,String> valEntry : varEntry.getValue().entrySet())
+                {
+                    Element valNameElement = doc.createElement("DOMAIN-VALUE");
+                    valNameElement.appendChild(doc.createTextNode(valEntry.getValue())); // the variable name itself
+                    varElement.appendChild(valNameElement);
+                }
+            }
+
+            // Add CP-statements
+            Integer stmtID = 0;
+            // Iterate through tables
+            for (HashMap.Entry<String,CPTable> varEntry : this.varToCPT.entrySet())
+            {
+                // Iterate through table entries
+                for (CPTable.Entry<Assignment,Boolean> stmtEntry : varEntry.getValue().entrySet()) {
+
+                    Element stmtElement = doc.createElement("PREFERENCE-STATEMENT");
+                    rootElement.appendChild(stmtElement);
+
+                    Element stmtIDElement = doc.createElement("STATEMENT-ID"); // assign an ID arbitrarily
+                    stmtIDElement.appendChild(doc.createTextNode(stmtID.toString()));
+                    stmtElement.appendChild(stmtIDElement);
+                    stmtID++;
+
+                    Element stmtVarElement = doc.createElement("PREFERENCE-VARIABLE");
+                    String var = varEntry.getKey();
+                    stmtVarElement.appendChild(doc.createTextNode(var));
+                    stmtElement.appendChild(stmtVarElement);
+
+                    // Iterate through parent values in an entry
+                    for (Map.Entry<String,Boolean> assnEntry : stmtEntry.getKey().entrySet())
+                    {
+                        Element stmtCondElement = doc.createElement("CONDITION");
+                        // I am slightly proud but mostly ashamed of the following monstrous statement
+                        // It just means to add "parent=val" to the condition
+                        stmtCondElement.appendChild(doc.createTextNode(assnEntry.getKey().concat("=").concat(this.varToValueNames.get(varEntry.getKey()).get(assnEntry.getValue()))));
+                        stmtElement.appendChild(stmtCondElement);
+                    }
+
+                    Element stmtPrefElement = doc.createElement("PREFERENCE");
+                    String nameOfBetterVal = this.varToValueNames.get(var).get(stmtEntry.getValue());
+                    String nameOfWorseVal = this.varToValueNames.get(var).get(!(stmtEntry.getValue()));
+                    stmtPrefElement.appendChild(doc.createTextNode(nameOfBetterVal.concat(":").concat(nameOfWorseVal)));
+                    stmtElement.appendChild(stmtPrefElement);
+                }
+            }
+
+            // Write XML
+            TransformerFactory transformerFactory = TransformerFactory.newInstance();
+            Transformer transformer = transformerFactory.newTransformer();
+            DOMSource source = new DOMSource(doc);
+            StreamResult result = new StreamResult(new File(filePath));
+            transformer.transform(source, result);
+
+        } catch (ParserConfigurationException pce) {
+            pce.printStackTrace();
+        } catch (TransformerException tfe) {
+            tfe.printStackTrace();
+        }
+    }
 }
 
 // Specification of the conditional preferences for one variable
@@ -153,10 +245,7 @@ class CPTable extends HashMap<Assignment,Boolean>
     //  then "Fish: Soup>Salad" becomes "Fish,Red: Soup>Salad" and "Fish,White: Soup>Salad"
     // Assume all statements are already consistent with one another
 //    private void expandParents();
-    private void removeSuperfluousParents()
-    {
-
-    }
+//    private void removeSuperfluousParents();
 
 }
 
