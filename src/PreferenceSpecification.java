@@ -185,9 +185,8 @@ class PreferenceSpecification
                     for (Map.Entry<String,Boolean> assnEntry : stmtEntry.getKey().entrySet())
                     {
                         Element stmtCondElement = doc.createElement("CONDITION");
-                        // I am slightly proud but mostly ashamed of the following monstrous statement
-                        // It just means to add "parent=val" to the condition
-                        stmtCondElement.appendChild(doc.createTextNode(assnEntry.getKey().concat("=").concat(this.varToValueNames.get(varEntry.getKey()).get(assnEntry.getValue()))));
+                        String condVal = this.varToValueNames.get(var).get(assnEntry.getValue());
+                        stmtCondElement.appendChild(doc.createTextNode(assnEntry.getKey().concat("=").concat(condVal)));
                         stmtElement.appendChild(stmtCondElement);
                     }
 
