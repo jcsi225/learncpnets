@@ -130,6 +130,57 @@ class PreferenceSpecification
 
     // Methods
 
+
+    // Attempts to add "condition: preferredValue > !preferredValue" to var's CP-table (replacing any existing
+    //  preference conditioned on the given condition)
+    // If preserveAcyclicity is true, reject the change if it would introduce a cycle in the parent relation
+    // Return whether the change was accepted
+    public Boolean addPreference(String var, Assignment condition, Boolean preferredValue, Boolean preserveAcyclicity)
+    {
+        CPTable originalCPT = this.varToCPT.get(var);
+        CPTable candidateCPT = originalCPT.altered(condition,preferredValue);
+
+        this.varToCPT.put(var,candidateCPT);
+        if (preserveAcyclicity && this.partOfCycle(var))
+        {
+            this.varToCPT.put(var,originalCPT);
+            return Boolean.FALSE;
+        }
+        else
+        {
+            return  Boolean.TRUE;
+        }
+    }
+    // Helper function
+    // Return whether the given variable is part of a cycle in the parent relation
+    private Boolean partOfCycle(String var)
+    {
+        HashSet<String> explored = new HashSet<String>();
+        LinkedList<String> frontier = new LinkedList<String>();
+
+        explored.add(var);
+        frontier.addFirst(var);
+
+        while (!frontier.isEmpty())
+        {
+            String current = frontier.removeFirst();
+            for (String ancestor : this.varToCPT.get(current).getParents())
+            {
+                if (ancestor.equals(var))
+                {
+                    return Boolean.TRUE;
+                }
+                else if (!explored.contains(ancestor))
+                {
+                    explored.add(ancestor);
+                    frontier.addFirst(ancestor);
+                }
+            }
+        }
+        return  Boolean.FALSE;
+    }
+
+
     // Write an XML file of the preferences, similarly to the read-in format
     void writeXML(String filePath)
     {
@@ -214,7 +265,7 @@ class PreferenceSpecification
 }
 
 // Specification of the conditional preferences for one variable
-// Maps a partisal assignment giving conditions to a bool giving the preferred value of the variable
+// Maps a partial assignment giving conditions to a bool giving the preferred value of the variable
 class CPTable extends HashMap<Assignment,Boolean>
 {
     // The variable over which preferences are being specified
@@ -239,12 +290,58 @@ class CPTable extends HashMap<Assignment,Boolean>
         return parents;
     }
 
-    // Have each statement include all parent variables
-    // e.g., if we have Entree (Fish or Chicken) and Wine (Red or White) as parents,
-    //  then "Fish: Soup>Salad" becomes "Fish,Red: Soup>Salad" and "Fish,White: Soup>Salad"
-    // Assume all statements are already consistent with one another
-//    private void expandParents();
-//    private void removeSuperfluousParents();
+    // Return a new CPTable like the current one except the given statement is added
+    // (Replaces an old statement if it has the same parent assignment)
+    public CPTable altered(Assignment parentAssignment, Boolean preferredValue)
+    {
+        CPTable mod = new CPTable(this.var);
+
+        // If the new and existing statements have different parent sets, modify statements to include all parents
+        // e.g., if we have Entree (Fish or Chicken) and Wine (Red or White) as parents,
+        //  then "Fish: Soup>Salad" becomes "Fish,Red: Soup>Salad" and "Fish,White: Soup>Salad"
+        HashSet<String> originalParents = this.getParents();
+        HashSet<String> additionalParents = new HashSet<String>(parentAssignment.keySet());
+        // First update the existing statements to use the new parent set
+        for (Entry<Assignment,Boolean> currentStatement : this.entrySet())
+        {
+            HashSet<Assignment> expandedCurrentStatement = currentStatement.getKey().expandedByVars(additionalParents);
+            for (Assignment newStmt : expandedCurrentStatement)
+            {
+                mod.put(newStmt,currentStatement.getValue());
+            }
+        }
+        // Then expand and insert the new statement
+        HashSet<Assignment> expandedNewStatement = parentAssignment.expandedByVars(originalParents);
+        for (Assignment newStmt : expandedNewStatement)
+        {
+            mod.put(newStmt,preferredValue);
+        }
+
+        return mod;
+    }
+
+    // Return a new CPTable like the current one except entailing the opposite preference for the given assignment
+    // Assumes that the variable set of the input is a (non-strict) superset of the existing parent set
+    public CPTable flipped(Assignment assnToFlip)
+    {
+        Boolean preferredValue = null;
+
+        for (Assignment currAssn : this.keySet())
+        {
+            // Determine what the opposite entailed preference is
+            if (assnToFlip.subsumes(currAssn))
+            {
+                preferredValue = !this.get(currAssn);
+            }
+            // Enforce the requirement that the conditions in question must be at least as specific as the existing conditions
+            else if (currAssn.subsumes(assnToFlip))
+            {
+                throw new RuntimeException("illegal change to CP-table");
+            }
+        }
+
+        return this.altered(assnToFlip,preferredValue);
+    }
 
 }
 
@@ -265,6 +362,55 @@ class Assignment extends TreeMap<String,Boolean>
         return true;
     }
 
+    // Return a new Assignment like the current one, but with the given variable assigned to the given value
+    public Assignment altered(String varToAddOrChange, Boolean newValueOfVar)
+    {
+        Assignment mod = new Assignment();
+        mod.putAll(this);
+        mod.put(varToAddOrChange,newValueOfVar);
+        return mod;
+    }
+
+    // Create a set of Assignments like the current one, but with additional variables
+    // (One new Assignment for each combination of settings to new variables)
+    // e.g., if we have Entree (Fish or Chicken) and Wine (Red or White) as parents,
+    //  then "Fish: Soup>Salad" becomes "Fish,Red: Soup>Salad" and "Fish,White: Soup>Salad"
+    public HashSet<Assignment> expandedByVars(HashSet<String> vars)
+    {
+        HashSet<Assignment> expanded = new HashSet<Assignment>();
+
+        LinkedList<Assignment> expansionQueue = new LinkedList<Assignment>();
+        expansionQueue.addLast(this);
+
+        while (!expansionQueue.isEmpty())
+        {
+            Assignment curr = expansionQueue.removeFirst();
+
+            // See which variables are new to the Assignment
+            LinkedList<String> missingVars = new LinkedList<String>();
+            for (String var : vars)
+            {
+                if (!this.containsKey(var))
+                {
+                    missingVars.add(var);
+                }
+            }
+
+            if (missingVars.isEmpty())
+            {
+                expanded.add(curr);
+            }
+            // Select and expand over a variable
+            else
+            {
+                String missingVar = missingVars.remove();
+                expansionQueue.addLast(curr.altered(missingVar,Boolean.TRUE));
+                expansionQueue.addLast(curr.altered(missingVar,Boolean.FALSE));
+            }
+        }
+
+        return expanded;
+    }
 
     // Some stuff to let us use Assignment objects as dictionary keys
     // https://stackoverflow.com/questions/2265503/why-do-i-need-to-override-the-equals-and-hashcode-methods-in-java
