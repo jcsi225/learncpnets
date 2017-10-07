@@ -118,9 +118,15 @@ class PreferenceSpecification
                 String pref = stmtPrefElement.getTextContent();
                 String preferredValue = pref.split(":")[0];
                 if (this.varToValueNames.get(var).get(Boolean.TRUE).equals(preferredValue))
-                    this.varToCPT.get(var).put(parentAssignment,Boolean.TRUE);
+                {
+                    CPTable updated =  this.varToCPT.get(var).altered(parentAssignment, Boolean.TRUE);
+                    this.varToCPT.put(var,updated);
+                }
                 else
-                    this.varToCPT.get(var).put(parentAssignment,Boolean.FALSE);
+                {
+                    CPTable updated =  this.varToCPT.get(var).altered(parentAssignment, Boolean.FALSE);
+                    this.varToCPT.put(var,updated);
+                }
             }
 
         } catch (Exception e) {
@@ -317,6 +323,41 @@ class CPTable extends HashMap<Assignment,Boolean>
             mod.put(newStmt,preferredValue);
         }
 
+        return mod.simplified();
+    }
+    // Detect and remove superfluous parents (i.e., variables in the conditions that the preferences do not really depend on)
+    // Assumes all parents are present in all statements initially
+    private CPTable simplified()
+    {
+        // Identify parents to remove
+        HashSet<String> superfluousParents = new HashSet<String>();
+        for (String parent : this.getParents())
+        {
+            // Try to find a pair of statements differing only in this parent where the preferred value differs
+            // If none exists, the parent is superfluous
+            Boolean superfluous = new Boolean(Boolean.TRUE);
+            for (Entry<Assignment,Boolean> stmt : this.entrySet())
+            {
+                Boolean preferredValueForStmt = stmt.getValue();
+                Boolean preferredValueForFlippedStmt = this.get(stmt.getKey().flipped(parent));
+                if (!preferredValueForStmt.equals(preferredValueForFlippedStmt))
+                {
+                    superfluous = Boolean.FALSE;
+                }
+            }
+            if (superfluous)
+            {
+                superfluousParents.add(parent);
+            }
+        }
+
+        // Make a CP-table without them
+        CPTable mod = new CPTable(this.var);
+        for (Entry<Assignment,Boolean> stmt : this.entrySet())
+        {
+            Assignment newAssn = stmt.getKey().withVarsRemoved(superfluousParents);
+            mod.put(newAssn,stmt.getValue());
+        }
         return mod;
     }
 
@@ -370,6 +411,12 @@ class Assignment extends TreeMap<String,Boolean>
         mod.put(varToAddOrChange,newValueOfVar);
         return mod;
     }
+    // ... but with the given variable assigned to the opposite of its current value
+    public Assignment flipped(String varToFlip)
+    {
+        Boolean newValue = !this.get(varToFlip);
+        return this.altered(varToFlip,newValue);
+    }
 
     // Create a set of Assignments like the current one, but with additional variables
     // (One new Assignment for each combination of settings to new variables)
@@ -390,7 +437,7 @@ class Assignment extends TreeMap<String,Boolean>
             LinkedList<String> missingVars = new LinkedList<String>();
             for (String var : vars)
             {
-                if (!this.containsKey(var))
+                if (!curr.containsKey(var))
                 {
                     missingVars.add(var);
                 }
@@ -410,6 +457,19 @@ class Assignment extends TreeMap<String,Boolean>
         }
 
         return expanded;
+    }
+    // Create a version of the assignment without the given variables
+    public Assignment withVarsRemoved(HashSet<String> vars)
+    {
+        Assignment mod = new Assignment();
+        for (Map.Entry<String,Boolean> assn : this.entrySet())
+        {
+            if (!vars.contains(assn.getKey()))
+            {
+                mod.put(assn.getKey(),assn.getValue());
+            }
+        }
+        return mod;
     }
 
     // Some stuff to let us use Assignment objects as dictionary keys
