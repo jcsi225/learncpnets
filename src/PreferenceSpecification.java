@@ -117,15 +117,14 @@ class PreferenceSpecification
 //                System.out.println("PREFERENCE : " + stmtPrefElement.getTextContent());
                 String pref = stmtPrefElement.getTextContent();
                 String preferredValue = pref.split(":")[0];
+                // Insert the statement
                 if (this.varToValueNames.get(var).get(Boolean.TRUE).equals(preferredValue))
                 {
-                    CPTable updated =  this.varToCPT.get(var).altered(parentAssignment, Boolean.TRUE);
-                    this.varToCPT.put(var,updated);
+                    this.addPreference(var,parentAssignment,Boolean.TRUE,Boolean.FALSE);
                 }
                 else
                 {
-                    CPTable updated =  this.varToCPT.get(var).altered(parentAssignment, Boolean.FALSE);
-                    this.varToCPT.put(var,updated);
+                    this.addPreference(var,parentAssignment,Boolean.FALSE,Boolean.FALSE);
                 }
             }
 
@@ -140,7 +139,7 @@ class PreferenceSpecification
     // Attempts to add "condition: preferredValue > !preferredValue" to var's CP-table (replacing any existing
     //  preference conditioned on the given condition)
     // If preserveAcyclicity is true, reject the change if it would introduce a cycle in the parent relation
-    // Return whether the change was accepted
+    // Return whether the CP-net was changed (false if change was rejected or was redundant to the existing preferences)
     public Boolean addPreference(String var, Assignment condition, Boolean preferredValue, Boolean preserveAcyclicity)
     {
         CPTable originalCPT = this.varToCPT.get(var);
@@ -148,6 +147,11 @@ class PreferenceSpecification
 
         this.varToCPT.put(var,candidateCPT);
         if (preserveAcyclicity && this.partOfCycle(var))
+        {
+            this.varToCPT.put(var,originalCPT);
+            return Boolean.FALSE;
+        }
+        else if (candidateCPT.equals(originalCPT))
         {
             this.varToCPT.put(var,originalCPT);
             return Boolean.FALSE;
@@ -384,6 +388,36 @@ class CPTable extends HashMap<Assignment,Boolean>
         return this.altered(assnToFlip,preferredValue);
     }
 
+    // Consider two CPTables equal if they have the same keys, values, and variable
+    @Override
+    public boolean equals(final Object obj) {
+        if (this == obj)
+            return true;
+        if (obj == null)
+            return false;
+        if (getClass() != obj.getClass())
+            return false;
+        final CPTable other = (CPTable) obj;
+        if (!this.var.equals(other.var))
+        {
+            return false;
+        }
+        for (Assignment assn : this.keySet())
+        {
+            if (other.getOrDefault(assn,null) != this.get(assn))
+            {
+                return false;
+            }
+        }
+        for (Assignment assn : other.keySet())
+        {
+            if (this.getOrDefault(assn,null) != other.get(assn))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
 }
 
 // Assignment of preference variables to values
