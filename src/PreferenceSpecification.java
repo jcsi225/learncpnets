@@ -329,6 +329,7 @@ class CPTable extends HashMap<Assignment,Boolean>
 
         return mod.simplified();
     }
+    // Helper function for modifying the table
     // Detect and remove superfluous parents (i.e., variables in the conditions that the preferences do not really depend on)
     // Assumes all parents are present in all statements initially
     private CPTable simplified()
@@ -512,12 +513,25 @@ class Assignment extends TreeMap<String,Boolean>
     @Override
     public int hashCode()
     {
-        String mapAsString = "";
+        return this.toString().hashCode();
+    }
+    // Pretty string "(var1=val1,var2=val2,...)"
+    @Override
+    public String toString() {
+        String mapAsString = "(";
         for (SortedMap.Entry<String,Boolean> entry : this.entrySet())
         {
-            mapAsString = mapAsString.concat(entry.getKey()).concat(entry.getValue().toString());
+            mapAsString = mapAsString.concat(entry.getKey())
+                .concat("=")
+                .concat(entry.getValue().toString());
+            // If this is not the last entry, add a comma
+            if (!this.tailMap(entry.getKey(),false).isEmpty())
+            {
+                mapAsString = mapAsString.concat(",");
+            }
         }
-        return mapAsString.hashCode();
+        mapAsString = mapAsString.concat(")");
+        return mapAsString;
     }
     // Consider two Assignments equal if they assign the same variables to the same values
     @Override
@@ -530,5 +544,57 @@ class Assignment extends TreeMap<String,Boolean>
             return false;
         final Assignment other = (Assignment) obj;
         return (this.subsumes(other) && other.subsumes(this));
+    }
+}
+
+// Comparison o>o' for two outcomes o=better, o'=worse
+class Comparison
+{
+    private Assignment better;
+    private Assignment worse;
+
+    // Getters
+    public Assignment better()
+    {
+        return this.better;
+    }
+    public Assignment worse()
+    {
+        return this.worse;
+    }
+
+    // Constructor
+    public Comparison(Assignment better, Assignment worse)
+    {
+        this.better = better;
+        this.worse = worse;
+    }
+
+    // Return the opposite of this comparision
+    public Comparison flipped()
+    {
+        return new Comparison(this.worse,this.better);
+    }
+
+    @Override
+    public int hashCode() {
+        return this.toString().hashCode();
+    }
+    // Pretty string "better>worse"
+    @Override
+    public String toString() {
+        return this.better.toString().concat(">").concat(this.worse.toString());
+    }
+    // For hashing --- define two Comparisons as equal if they relate the same two assignments in the same way
+    @Override
+    public boolean equals(final Object obj) {
+        if (this == obj)
+            return true;
+        if (obj == null)
+            return false;
+        if (getClass() != obj.getClass())
+            return false;
+        final Comparison other = (Comparison) obj;
+        return (this.better.equals(other.better) && this.worse.equals(other.worse));
     }
 }
