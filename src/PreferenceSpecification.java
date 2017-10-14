@@ -2,6 +2,8 @@
 
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.DocumentBuilder;
+
+import com.sun.tools.javac.util.JCDiagnostic;
 import org.w3c.dom.Document;
 import org.w3c.dom.NodeList;
 import org.w3c.dom.Node;
@@ -191,6 +193,75 @@ class PreferenceSpecification
     }
 
 
+    // Generate the adjacency lists for this CP-net's induced preference graph (edges from worse to better)
+    // Warning: Enumerates all outcomes; only use for small CP-nets
+    public HashMap<Assignment,HashSet<Assignment>> inducedPreferenceGraph()
+    {
+        // This will be exponential-space in the number of preference variables
+        if (this.varToCPT.size() >= 15)
+        {
+            throw new RuntimeException("attempted to generate a huge induced preference graph");
+        }
+
+        // Assignment -> list of more-preferred assignments that differ on one preference variable
+        HashMap<Assignment,HashSet<Assignment>> assnToImprovingFlips = new HashMap<Assignment,HashSet<Assignment>>();
+
+        // Assignments we are finished exploring
+        HashSet<Assignment> explored = new HashSet<Assignment>();
+        // Assignments we have yet to explore
+        TreeSet<Assignment> remaining = new TreeSet<Assignment>();
+        Assignment firstBuilt = new Assignment(this.varToCPT.keySet(),Boolean.FALSE).firstLexicographically();
+        Assignment currentBuilt = new Assignment(firstBuilt);
+        do {
+            remaining.add(currentBuilt);
+            currentBuilt = currentBuilt.nextLexicographically();
+        }while (!currentBuilt.equals(firstBuilt));
+
+        // Construct the graph by traversing from worse to better
+        while (!remaining.isEmpty())
+        {
+            // Find an unexplored starting point
+            LinkedList<Assignment> frontier = new LinkedList<Assignment>();
+            frontier.addFirst(remaining.first());
+            explored.add(remaining.first());
+            // Explore improvements from that point until we run out of places to explore
+            while (!frontier.isEmpty())
+            {
+                Assignment assn = frontier.removeFirst();
+
+                // Find all improving flips
+                HashSet<Assignment> improvingFlips = new HashSet<Assignment>();
+                for (String varToFlip : this.varToCPT.keySet())
+                {
+                    Assignment flippedAssn = assn.flipped(varToFlip);
+                    // Check whether the candidate flipped variable's CP-table entails that the flip is preferred
+                    if (this.varToCPT.get(varToFlip).preferredValueGiven(flippedAssn).equals(flippedAssn.get(varToFlip)))
+                    {
+                        improvingFlips.add(flippedAssn);
+                    }
+                }
+                // These are the current assignment's children in the induced preference graph
+                assnToImprovingFlips.put(assn,improvingFlips);
+
+                // Put these items in line explore if they haven't been already
+                for (Assignment better : improvingFlips)
+                {
+                    if (!explored.contains(better))
+                    {
+                        explored.add(better);
+                        frontier.addFirst(better);
+                    }
+                }
+
+            }
+            remaining.removeAll(explored);
+        }
+
+
+        return assnToImprovingFlips;
+    }
+
+
     // Write an XML file of the preferences, similarly to the read-in format
     void writeXML(String filePath)
     {
@@ -281,6 +352,7 @@ class CPTable extends HashMap<Assignment,Boolean>
     // The variable over which preferences are being specified
     public String var;
 
+    // Constructor
     public CPTable(String var)
     {
         this.var = var;
@@ -298,6 +370,28 @@ class CPTable extends HashMap<Assignment,Boolean>
             }
         }
         return parents;
+    }
+
+    // Return the preferred value of the variable given the condition
+    public Boolean preferredValueGiven(Assignment condition)
+    {
+        // Assume the condition is an assignment to a variable set that contains the parent set
+        if (!condition.keySet().containsAll(this.getParents()))
+        {
+            throw new RuntimeException("invalid CP-table lookup");
+        }
+
+        // Try to find the relevant table entry
+        for (Entry<Assignment,Boolean> entry : this.entrySet())
+        {
+            if (condition.subsumes(entry.getKey()))
+            {
+                return entry.getValue();
+            }
+        }
+
+        // If we reach this point, the table is incomplete and we're looking for a missing preference
+        return null;
     }
 
     // Return a new CPTable like the current one except the given statement is added
@@ -424,6 +518,22 @@ class CPTable extends HashMap<Assignment,Boolean>
 // Assignment of preference variables to values
 class Assignment extends TreeMap<String,Boolean>
 {
+    // Default constructor
+    public Assignment(){}
+    // Copy constructor
+    public Assignment(Assignment original)
+    {
+        this.putAll(original);
+    }
+    // Constructor assigning all of the given preference variables to the given value
+    public Assignment(Set<String> varSet, Boolean defaultValue)
+    {
+        for (String var : varSet)
+        {
+            this.put(var, defaultValue);
+        }
+    }
+
     // Return true iff this assignment is a (non-strict) superset of the other assignment in question
     // e.g., <Entree=Fish,Wine=White> subsumes <>, <Entree=Fish>, <Wine=White>, and <Entree=Fish,Wine=White>
     public Boolean subsumes(Assignment other)
@@ -441,8 +551,7 @@ class Assignment extends TreeMap<String,Boolean>
     // Return a new Assignment like the current one, but with the given variable assigned to the given value
     public Assignment altered(String varToAddOrChange, Boolean newValueOfVar)
     {
-        Assignment mod = new Assignment();
-        mod.putAll(this);
+        Assignment mod = new Assignment(this);
         mod.put(varToAddOrChange,newValueOfVar);
         return mod;
     }
@@ -505,6 +614,31 @@ class Assignment extends TreeMap<String,Boolean>
             }
         }
         return mod;
+    }
+
+
+    // For iterating through Assignments over the same variable set
+    // Let the ordering start with all falses, lowest digit is first variable by alphabetical name, wrap around
+    // e.g., (a=F,b=F), (a=T,b=F), (a=F,b=T), (a=T,b=T), (a=F,b=F), ...
+    public Assignment nextLexicographically()
+    {
+        Assignment mod = new Assignment(this);
+
+        // Flip values until one goes from false to true
+        for (String var : mod.keySet())
+        {
+            mod.put(var,!mod.get(var));
+            if (mod.get(var).equals(Boolean.TRUE))
+            {
+                return mod;
+            }
+        }
+        // If the loop terminates, we've wrapped around to all falses
+        return mod;
+    }
+    public Assignment firstLexicographically()
+    {
+        return new Assignment(this.keySet(),Boolean.FALSE);
     }
 
     // Some stuff to let us use Assignment objects as dictionary keys
