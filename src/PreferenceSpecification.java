@@ -193,11 +193,40 @@ class PreferenceSpecification
     }
 
 
+    // Generate all preferences o>o' entailed by the CP-net
+    // Warning: Exponential-space in the number of preference variablesvariables
+    // todo: check correctness
+    public HashSet<Comparison> allEntailments()
+    {
+        HashSet<Comparison> entailments = new HashSet<Comparison>();
+        HashMap<Assignment,HashSet<Assignment>> preferenceGraph = this.inducedPreferenceGraph();
+        // Take each outcome o' and traverse its better descendants o in the preference graph, generating comparisons o>o'
+        for (Assignment worse : preferenceGraph.keySet())
+        {
+            HashSet<Assignment> explored = new HashSet<Assignment>();
+            LinkedList<Assignment> frontier = new LinkedList<Assignment>();
+            frontier.addFirst(worse);
+            do{
+                Assignment current = frontier.removeFirst();
+                for (Assignment better : inducedPreferenceGraph().get(current))
+                {
+                    if (!explored.contains(better))
+                    {
+                        explored.add(better);
+                        frontier.addFirst(better);
+                        entailments.add(new Comparison(better,worse));
+                    }
+                }
+            }while (!frontier.isEmpty());
+        }
+        return entailments;
+    }
     // Generate the adjacency lists for this CP-net's induced preference graph (edges from worse to better)
-    // Warning: Enumerates all outcomes; only use for small CP-nets
+    // Warning: Exponential-space in the number of preference variables
+    // todo: check correctness
     public HashMap<Assignment,HashSet<Assignment>> inducedPreferenceGraph()
     {
-        // This will be exponential-space in the number of preference variables
+        // Don't do this for large CP-nets
         if (this.varToCPT.size() >= 15)
         {
             throw new RuntimeException("attempted to generate a huge induced preference graph");
