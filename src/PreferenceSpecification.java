@@ -3,7 +3,6 @@
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.DocumentBuilder;
 
-import com.sun.tools.javac.util.JCDiagnostic;
 import org.w3c.dom.Document;
 import org.w3c.dom.NodeList;
 import org.w3c.dom.Node;
@@ -195,7 +194,6 @@ class PreferenceSpecification
 
     // Generate all preferences o>o' entailed by the CP-net
     // Warning: Exponential-space in the number of preference variablesvariables
-    // todo: check correctness
     public HashSet<Comparison> allEntailments()
     {
         HashSet<Comparison> entailments = new HashSet<Comparison>();
@@ -223,7 +221,6 @@ class PreferenceSpecification
     }
     // Generate the adjacency lists for this CP-net's induced preference graph (edges from worse to better)
     // Warning: Exponential-space in the number of preference variables
-    // todo: check correctness
     public HashMap<Assignment,HashSet<Assignment>> inducedPreferenceGraph()
     {
         // Don't do this for large CP-nets
@@ -238,7 +235,7 @@ class PreferenceSpecification
         // Assignments we are finished exploring
         HashSet<Assignment> explored = new HashSet<Assignment>();
         // Assignments we have yet to explore
-        TreeSet<Assignment> remaining = new TreeSet<Assignment>();
+        HashSet<Assignment> remaining = new HashSet<Assignment>();
         Assignment firstBuilt = new Assignment(this.varToCPT.keySet(),Boolean.FALSE).firstLexicographically();
         Assignment currentBuilt = new Assignment(firstBuilt);
         do {
@@ -251,8 +248,8 @@ class PreferenceSpecification
         {
             // Find an unexplored starting point
             LinkedList<Assignment> frontier = new LinkedList<Assignment>();
-            frontier.addFirst(remaining.first());
-            explored.add(remaining.first());
+            frontier.addFirst(remaining.iterator().next());
+            explored.add(remaining.iterator().next());
             // Explore improvements from that point until we run out of places to explore
             while (!frontier.isEmpty())
             {
@@ -264,7 +261,7 @@ class PreferenceSpecification
                 {
                     Assignment flippedAssn = assn.flipped(varToFlip);
                     // Check whether the candidate flipped variable's CP-table entails that the flip is preferred
-                    if (this.varToCPT.get(varToFlip).preferredValueGiven(flippedAssn).equals(flippedAssn.get(varToFlip)))
+                    if (this.varToCPT.get(varToFlip).preferredValueGiven(flippedAssn) == flippedAssn.get(varToFlip))
                     {
                         improvingFlips.add(flippedAssn);
                     }
