@@ -3,6 +3,7 @@
 import javax.xml.parsers.DocumentBuilderFactory;
 import javax.xml.parsers.DocumentBuilder;
 
+import jdk.jshell.spi.ExecutionControl;
 import org.w3c.dom.Document;
 import org.w3c.dom.NodeList;
 import org.w3c.dom.Node;
@@ -37,6 +38,16 @@ class PreferenceSpecification
     {
         this.varToCPT = new HashMap<>();
         this.varToValueNames = new HashMap<>();
+    }
+    // For building from scratch given a predefined feature set
+    public PreferenceSpecification(Set<String> varSet)
+    {
+        this.varToCPT = new HashMap<>();
+        this.varToValueNames = new HashMap<>();
+        for (String var : varSet)
+        {
+            this.addVar(var);
+        }
     }
     // Reads in conditional preferences from an XML file
     // Uses Santhanam's format: http://www.ece.iastate.edu/~gsanthan/crisner.html
@@ -74,12 +85,7 @@ class PreferenceSpecification
                         throw new RuntimeException("PREFERENCE-VARIABLE should have exactly two DOMAIN-VALUEs");
                     }
                     // Arbitrarily choose one value to be "true" and the other to be "false"
-                    HashMap<Boolean,String> varValNames = new HashMap<Boolean,String>();
-                    varValNames.put(Boolean.TRUE,varValList.item(0).getTextContent());
-                    varValNames.put(Boolean.FALSE,varValList.item(1).getTextContent());
-                    this.varToValueNames.put(varName,varValNames);
-                    // Initialize the CPT for the variable
-                    this.varToCPT.put(varName,new CPTable(varName));
+                    this.addVar(varName,varValList.item(0).getTextContent(),varValList.item(1).getTextContent());
                 }
             }
 
@@ -134,10 +140,37 @@ class PreferenceSpecification
         }
     }
 
+//    public static PreferenceSpecification random(int degree,  int variables){todo}
+
     // Methods
 
+    // Get the variables in the CP-net
+    public Set<String> getVars()
+    {
+        return this.varToValueNames.keySet();
+    }
 
-    // Attempts to add "condition: preferredValue > !preferredValue" to var's CP-table (replacing any existing
+    // Declare the existence of a variable, initializing the relevant fields
+    public void addVar(String varName, String positiveValName, String negativeValName)
+    {
+        if (this.varToCPT.containsKey(varName) || this.varToValueNames.containsKey(varName))
+        {
+            throw new RuntimeException("tried to add a variable to the CP-net that already existed");
+        }
+        this.varToCPT.put(varName,new CPTable(varName));
+        HashMap<Boolean,String> valueNames = new HashMap<Boolean,String>();
+        valueNames.put(Boolean.TRUE,positiveValName);
+        valueNames.put(Boolean.FALSE,negativeValName);
+        this.varToValueNames.put(varName,valueNames);
+    }
+    // Version that leaves it up to the class to make up names
+    public void addVar(String varName)
+    {
+        this.addVar(varName,varName.concat("_T"),varName.concat("_F"));
+    }
+
+
+    // Attempt to add "condition: preferredValue > !preferredValue" to var's CP-table (replacing any existing
     //  preference conditioned on the given condition)
     // If preserveAcyclicity is true, reject the change if it would introduce a cycle in the parent relation
     // Return whether the CP-net was changed (false if change was rejected or was redundant to the existing preferences)
