@@ -169,6 +169,15 @@ class PreferenceSpecification
         this.addVar(varName,varName.concat("_T"),varName.concat("_F"));
     }
 
+    // Insert a new CP-table for a known variable
+    public void setCPT(String var, CPTable newCPT)
+    {
+        if (!this.varToValueNames.containsKey(var))
+        {
+            throw new RuntimeException("tried to add a CPT for an undeclared preference variable");
+        }
+        this.varToCPT.put(var,newCPT);
+    }
 
     // Attempt to add "condition: preferredValue > !preferredValue" to var's CP-table (replacing any existing
     //  preference conditioned on the given condition)
@@ -268,14 +277,7 @@ class PreferenceSpecification
         // Assignments we are finished exploring
         HashSet<Assignment> explored = new HashSet<Assignment>();
         // Assignments we have yet to explore
-        HashSet<Assignment> remaining = new HashSet<Assignment>();
-        Assignment firstBuilt = new Assignment(this.varToCPT.keySet(),Boolean.FALSE).firstLexicographically();
-        Assignment currentBuilt = new Assignment(firstBuilt);
-        do {
-            remaining.add(currentBuilt);
-            currentBuilt = currentBuilt.nextLexicographically();
-        }while (!currentBuilt.equals(firstBuilt));
-
+        Set<Assignment> remaining = Assignment.allAssignments(this.varToCPT.keySet());
         // Construct the graph by traversing from worse to better
         while (!remaining.isEmpty())
         {
@@ -695,9 +697,21 @@ class Assignment extends TreeMap<String,Boolean>
         // If the loop terminates, we've wrapped around to all falses
         return mod;
     }
-    public Assignment firstLexicographically()
+//    public Assignment firstLexicographically()
+//    {
+//        return new Assignment(this.keySet(),Boolean.FALSE);
+//    }
+    // Explicitly make a set of all (exponentially many) assignments to the given binary variables
+    public static Set<Assignment> allAssignments(Set<String> varSet)
     {
-        return new Assignment(this.keySet(),Boolean.FALSE);
+        Set<Assignment> assns = new HashSet<Assignment>();
+        Assignment first = new Assignment(varSet,Boolean.FALSE);
+        Assignment current = first;
+        do{
+            assns.add(current);
+            current = current.nextLexicographically();
+        } while(!current.equals(first));
+        return assns;
     }
 
     // Some stuff to let us use Assignment objects as dictionary keys
