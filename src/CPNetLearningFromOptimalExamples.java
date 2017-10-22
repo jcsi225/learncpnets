@@ -1,7 +1,4 @@
-import java.util.Collections;
-import java.util.HashSet;
-import java.util.Iterator;
-import java.util.Set;
+import java.util.*;
 
 class CPNetLearningFromOptimalExamples
 {
@@ -41,7 +38,7 @@ class CPNetLearningFromOptimalExamples
             }
         }
 
-        if (addedVars.equals(allVars)) // todo: make sure this works as expected
+        if (addedVars.equals(allVars))
         {
             return  learned;
         }
@@ -68,8 +65,8 @@ class CPNetLearningFromOptimalExamples
                 {
                     continue;
                 }
-                // ...but are conditioned on the parent assignment
-                if (!example.condition.subsumes(candidateParentAssignment))
+                // ...and the example contains the parent assignment
+                if (!example.optimum.subsumes(candidateParentAssignment))
                 {
                     continue;
                 }
@@ -86,7 +83,10 @@ class CPNetLearningFromOptimalExamples
                     return null;
                 }
             }
-            created = created.altered(candidateParentAssignment,chosenVal);
+            if (chosenVal != null)
+            {
+                created = created.altered(candidateParentAssignment,chosenVal);
+            }
         }
 
         return created;
@@ -116,6 +116,63 @@ class OptimalExample
         this.optimum = optimum;
     }
 
+    // Generate an example consistent with the given CP-net
+    // Samples uniformly at random from the space of all optimal examples
+    // Assumes that the input is a complete acyclic CP-net
+    // todo: check correctness
+    static OptimalExample uniformlyRandomExample(PreferenceSpecification acyclicCPnet)
+    {
+        // Preset the condition by assigning each preference variable to true, false, or not-conditioned
+        Assignment condition = new Assignment();
+        Random rng = new Random();
+        for (String var : acyclicCPnet.getVars())
+        {
+            int choice = rng.nextInt(3);
+            if (choice == 0)
+            {
+                condition.put(var,Boolean.TRUE);
+            }
+            else if (choice == 1)
+            {
+                condition.put(var,Boolean.FALSE);
+            }
+            // otherwise (choice == 2), do not condition on this variable
+        }
+
+        // Find the best outcome given the conditoin
+        return optimumGiven(acyclicCPnet,condition);
+    }
+    // Helper function
+    private static OptimalExample optimumGiven(PreferenceSpecification acyclicCPnet, Assignment condition)
+    {
+        Assignment optimumSoFar = new Assignment(condition);
+        Set<String> remainingVars = acyclicCPnet.getVars();
+        remainingVars.removeAll(optimumSoFar.keySet());
+        while (!remainingVars.isEmpty())
+        {
+            // See if one of the unassigned variables has a preferred value given the assigned value
+            for (String var : remainingVars)
+            {
+                // That should be the case if the variable's parent values have already been chosen
+                if (optimumSoFar.keySet().containsAll(
+                        acyclicCPnet.getCPT(var).getParents()))
+                {
+                    Boolean preferredValue = acyclicCPnet.getCPT(var).preferredValueGiven(optimumSoFar);
+                    if (preferredValue==null)
+                    {
+                        throw new RuntimeException("missing preference data; complete CP-net input expected");
+                    }
+                    else
+                    {
+                        optimumSoFar.put(var,preferredValue);
+                    }
+                }
+            }
+            remainingVars.removeAll(optimumSoFar.keySet());
+        }
+
+        return new OptimalExample(condition,optimumSoFar);
+    }
 
     // For using as HashSet entries
     @Override

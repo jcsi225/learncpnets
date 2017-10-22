@@ -150,6 +150,12 @@ class PreferenceSpecification
         return this.varToValueNames.keySet();
     }
 
+    // Get a variable's CP-table
+    public CPTable getCPT(String var)
+    {
+        return this.varToCPT.get(var);
+    }
+
     // Declare the existence of a variable, initializing the relevant fields
     public void addVar(String varName, String positiveValName, String negativeValName)
     {
@@ -500,7 +506,7 @@ class CPTable extends HashMap<Assignment,Boolean>
             {
                 Boolean preferredValueForStmt = stmt.getValue();
                 Boolean preferredValueForFlippedStmt = this.get(stmt.getKey().flipped(parent));
-                if (!preferredValueForStmt.equals(preferredValueForFlippedStmt))
+                if (preferredValueForStmt!=(preferredValueForFlippedStmt))
                 {
                     superfluous = Boolean.FALSE;
                 }
