@@ -119,7 +119,6 @@ class OptimalExample
     // Generate an example consistent with the given CP-net
     // Samples uniformly at random from the space of all optimal examples
     // Assumes that the input is a complete acyclic CP-net
-    // todo: check correctness
     static OptimalExample uniformlyRandomExample(PreferenceSpecification acyclicCPnet)
     {
         // Preset the condition by assigning each preference variable to true, false, or not-conditioned
@@ -146,10 +145,12 @@ class OptimalExample
     private static OptimalExample optimumGiven(PreferenceSpecification acyclicCPnet, Assignment condition)
     {
         Assignment optimumSoFar = new Assignment(condition);
-        Set<String> remainingVars = acyclicCPnet.getVars();
+        HashSet<String> remainingVars = new HashSet<String>();
+        remainingVars.addAll(acyclicCPnet.getVars());
         remainingVars.removeAll(optimumSoFar.keySet());
         while (!remainingVars.isEmpty())
         {
+            int numVarsAdded = remainingVars.size(); // for catching infinite loops
             // See if one of the unassigned variables has a preferred value given the assigned value
             for (String var : remainingVars)
             {
@@ -169,6 +170,10 @@ class OptimalExample
                 }
             }
             remainingVars.removeAll(optimumSoFar.keySet());
+            if (remainingVars.size()==numVarsAdded) // infinite loop prevention
+            {
+                    throw new RuntimeException("input CP-net must be acyclic");
+            }
         }
 
         return new OptimalExample(condition,optimumSoFar);
