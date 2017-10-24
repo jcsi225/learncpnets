@@ -49,6 +49,16 @@ class PreferenceSpecification
             this.addVar(var);
         }
     }
+    // Copy constructor
+    public PreferenceSpecification(PreferenceSpecification original)
+    {
+        for (String var : original.getVars())
+        {
+            this.addVar(var);
+            this.varToValueNames.put(var,original.varToValueNames.get(var)); // shallow copy; do not alter the inner dict
+            this.varToCPT.put(var,new CPTable(original.getCPT(var)));
+        }
+    }
     // Reads in conditional preferences from an XML file
     // Uses Santhanam's format: http://www.ece.iastate.edu/~gsanthan/crisner.html
     // But with additional restrictions: Expect a binary-valued, consistent CP-net
@@ -151,6 +161,7 @@ class PreferenceSpecification
     }
 
     // Get a variable's CP-table
+    // (The object itself, not a copy, so changes to the return value will affect the CP-net)
     public CPTable getCPT(String var)
     {
         return this.varToCPT.get(var);
@@ -247,6 +258,7 @@ class PreferenceSpecification
         HashSet<Comparison> entailments = new HashSet<Comparison>();
         HashMap<Assignment,HashSet<Assignment>> preferenceGraph = this.inducedPreferenceGraph();
         // Take each outcome o' and traverse its better descendants o in the preference graph, generating comparisons o>o'
+        // (Yup, this is rather inefficient and can be improved with dynamic programming)
         for (Assignment worse : preferenceGraph.keySet())
         {
             HashSet<Assignment> explored = new HashSet<Assignment>();
@@ -262,12 +274,17 @@ class PreferenceSpecification
                         frontier.addFirst(better);
                         entailments.add(new Comparison(better,worse));
                     }
+                    if (better.equals(worse))
+                    {
+                        throw new RuntimeException("inconsistency in CP-net detected");
+                    }
                 }
             }while (!frontier.isEmpty());
         }
         return entailments;
     }
     // Generate the adjacency lists for this CP-net's induced preference graph (edges from worse to better)
+    // Assumes a consistent CP-net
     // Warning: Exponential-space in the number of preference variables
     public HashMap<Assignment,HashSet<Assignment>> inducedPreferenceGraph()
     {
@@ -310,7 +327,7 @@ class PreferenceSpecification
                 // These are the current assignment's children in the induced preference graph
                 assnToImprovingFlips.put(assn,improvingFlips);
 
-                // Put these items in line explore if they haven't been already
+                // Put these items in line to explore if they haven't been already
                 for (Assignment better : improvingFlips)
                 {
                     if (!explored.contains(better))
@@ -423,6 +440,15 @@ class CPTable extends HashMap<Assignment,Boolean>
     public CPTable(String var)
     {
         this.var = var;
+    }
+    // Copy constructor
+    public CPTable(CPTable original)
+    {
+        this.var = original.var;
+        for (Assignment assn : original.keySet())
+        {
+            this.put(assn,original.get(assn));
+        }
     }
 
     // Return the variable's parents
