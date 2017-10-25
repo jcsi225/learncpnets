@@ -52,6 +52,8 @@ class PreferenceSpecification
     // Copy constructor
     public PreferenceSpecification(PreferenceSpecification original)
     {
+        this.varToCPT = new HashMap<>();
+        this.varToValueNames = new HashMap<>();
         for (String var : original.getVars())
         {
             this.addVar(var);
@@ -266,7 +268,7 @@ class PreferenceSpecification
             frontier.addFirst(worse);
             do{
                 Assignment current = frontier.removeFirst();
-                for (Assignment better : inducedPreferenceGraph().get(current))
+                for (Assignment better : preferenceGraph.get(current))
                 {
                     if (!explored.contains(better))
                     {

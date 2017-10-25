@@ -3,7 +3,7 @@ import java.util.*;
 class CPNetLearningFromOptimalExamples
 {
 
-    // Learn a CP-net from a set of OptimalExamples (see below)
+    // Learn a binary-valued acyclic CP-net from a set of OptimalExamples (see below)
     public static PreferenceSpecification learn(Set<String> allVars, Set<OptimalExample> exampleSet, Integer inDegreeBound)
     {
         // CP-net under construction
@@ -15,23 +15,25 @@ class CPNetLearningFromOptimalExamples
         // Consider increasing sizes of candidate parent sets
         for (int i = 0; i <= inDegreeBound; i++)
         {
-            for (String candidateAddition : allVars)
+            boolean doneWithThisRound = false;
+            while (!doneWithThisRound)
             {
-                if (!addedVars.contains(candidateAddition))
+                doneWithThisRound = true;
+                for (String candidateAddition : allVars)
                 {
-                    // Consider size-i subsets as parent sets
-                    for (Set<String> candidateParentSet : RecursivePowerKSet.computeKPowerSet(allVars, i))
+                    if (!addedVars.contains(candidateAddition))
                     {
-                        // Don't make a a variable its own parent
-                        if (candidateParentSet.contains(candidateAddition))
+                        // Consider size-i subsets as parent sets
+                        for (Set<String> candidateParentSet : RecursivePowerKSet.computeKPowerSet(addedVars, i))
                         {
-                            continue;
-                        }
-                        CPTable createdCPT = CPNetLearningFromOptimalExamples.createCPTFromOptima(candidateAddition, candidateParentSet, exampleSet);
-                        if (createdCPT != null)
-                        {
-                            learned.setCPT(candidateAddition, createdCPT);
-                            addedVars.add(candidateAddition);
+                            CPTable createdCPT = CPNetLearningFromOptimalExamples.createCPTFromOptima(candidateAddition, candidateParentSet, exampleSet);
+                            if (createdCPT != null)
+                            {
+                                learned.setCPT(candidateAddition, createdCPT);
+                                addedVars.add(candidateAddition);
+                                // The newly-added variable may become a parent for one that could not previously be added
+                                doneWithThisRound = false;
+                            }
                         }
                     }
                 }
@@ -138,6 +140,24 @@ class OptimalExample
             // otherwise (choice == 2), do not condition on this variable
         }
 
+        // Find the best outcome given the conditoin
+        return optimumGiven(acyclicCPnet,condition);
+    }
+    // Random generation from a different distribution --- specify probability that each variable appears in the condition
+    static OptimalExample biasedRandomExample(PreferenceSpecification acyclicCPnet, float prob)
+    {
+        // Preset the condition by assigning each preference variable to true, false, or not-conditioned
+        Assignment condition = new Assignment();
+        Random rng = new Random();
+        for (String var : acyclicCPnet.getVars())
+        {
+            float roll = rng.nextFloat();
+            if (roll < prob)
+            {
+                condition.put(var,rng.nextBoolean());
+            }
+            // otherwise, do not condition on this variable
+        }
         // Find the best outcome given the conditoin
         return optimumGiven(acyclicCPnet,condition);
     }
