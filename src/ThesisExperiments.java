@@ -67,7 +67,7 @@ public class ThesisExperiments
                         {
                             if (exampleDistribution.equals("biased"))
                             {
-                                float prob = 1/numVars; // probability of including a given variable in the condition
+                                float prob = (float)1 / (float)numVars; // probability of including a given variable in the condition
                                 exampleSet.add(OptimalExample.biasedRandomExample(truePreferences,prob));
                             }
                             else // exampleDistribution.equals("uniform")
