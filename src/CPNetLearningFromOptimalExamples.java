@@ -13,8 +13,6 @@ class CPNetLearningFromOptimalExamples
 
         // Add variables to the CP-net one at a time
         // Consider increasing sizes of candidate parent sets
-        for (int i = 0; i <= inDegreeBound; i++)
-        {
             boolean doneWithThisRound = false;
             while (!doneWithThisRound)
             {
@@ -23,22 +21,32 @@ class CPNetLearningFromOptimalExamples
                 {
                     if (!addedVars.contains(candidateAddition))
                     {
+                        boolean doneWithThisVar = false;
                         // Consider size-i subsets as parent sets
-                        for (Set<String> candidateParentSet : RecursivePowerKSet.computeKPowerSet(addedVars, i))
+                        for (int i = 0; i <= inDegreeBound; i++)
                         {
-                            CPTable createdCPT = CPNetLearningFromOptimalExamples.createCPTFromOptima(candidateAddition, candidateParentSet, exampleSet);
-                            if (createdCPT != null)
+                            for (Set<String> candidateParentSet : RecursivePowerKSet.computeKPowerSet(addedVars, i))
                             {
-                                learned.setCPT(candidateAddition, createdCPT);
-                                addedVars.add(candidateAddition);
-                                // The newly-added variable may become a parent for one that could not previously be added
-                                doneWithThisRound = false;
+                                CPTable createdCPT = CPNetLearningFromOptimalExamples.createCPTFromOptima(candidateAddition, candidateParentSet, exampleSet);
+                                if (createdCPT != null)
+                                {
+                                    learned.setCPT(candidateAddition, createdCPT);
+                                    addedVars.add(candidateAddition);
+                                    // The newly-added variable may become a parent for one that could not previously be added
+                                    doneWithThisRound = false;
+                                    doneWithThisVar = true;
+                                    break;
+                                }
+                            }
+                            if (doneWithThisVar)
+                            {
+                                break;
                             }
                         }
                     }
                 }
             }
-        }
+
 
         if (addedVars.equals(allVars))
         {
