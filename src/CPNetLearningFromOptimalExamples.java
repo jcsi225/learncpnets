@@ -1,3 +1,6 @@
+// CP-net learning from optimal examples (unrelated to current work in learning from comparisons over two outcomes)
+// See: Cory Siler, "Learning Conditional Preference Networks from Optimal Examples". Master's thesis, University of Kentucky, 2017.
+
 import java.util.*;
 
 class CPNetLearningFromOptimalExamples
